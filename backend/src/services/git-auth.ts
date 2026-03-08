@@ -101,7 +101,9 @@ export class GitAuthService {
     const settingsService = new SettingsService(database)
     const settings = settingsService.getSettings('default')
     const gitCredentials = (settings.preferences.gitCredentials || []) as GitCredential[]
+    logger.info(`Looking for SSH credentials for host: ${sshHost}, configured credentials: ${gitCredentials.map(c => `${c.name}(${c.host},${c.type})`).join(', ')}`)
     const sshCredentials = getSSHCredentialsForHost(gitCredentials, sshHost)
+    logger.info(`Found ${sshCredentials.length} SSH credentials for ${sshHost}`)
 
     if (sshCredentials.length > 0 && sshCredentials[0]) {
       try {

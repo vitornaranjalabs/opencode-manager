@@ -55,8 +55,9 @@ async function validateSSHKey(keyPath: string): Promise<boolean> {
 export async function writeTemporarySSHKey(keyContent: string, identifier: string): Promise<string> {
   await ensureSSHKeysDir()
   
+  const sanitizedIdentifier = identifier.replace(/[^a-zA-Z0-9_-]/g, '_')
   const randomSuffix = randomBytes(8).toString('hex')
-  const fileName = `key-${identifier}-${randomSuffix}`
+  const fileName = `key-${sanitizedIdentifier}-${randomSuffix}`
   const keyPath = join(SSH_KEYS_DIR, fileName)
 
   if (!keyPath.startsWith(SSH_KEYS_DIR)) {
@@ -109,7 +110,8 @@ export function buildSSHCommandWithKnownHosts(knownHostsPath: string, port?: str
 export async function writePersistentSSHKey(keyContent: string, identifier: string): Promise<string> {
   await ensureSSHKeysDir()
 
-  const fileName = `persistent-${identifier}`
+  const sanitizedIdentifier = identifier.replace(/[^a-zA-Z0-9_-]/g, '_')
+  const fileName = `persistent-${sanitizedIdentifier}`
   const keyPath = join(SSH_KEYS_DIR, fileName)
 
   if (!keyPath.startsWith(SSH_KEYS_DIR)) {
