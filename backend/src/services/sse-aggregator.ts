@@ -143,20 +143,18 @@ class SSEAggregator {
     const url = new URL(`http://${OPENCODE_HOST}:${OPENCODE_PORT}/event`)
     url.searchParams.set('directory', directory)
     
-    logger.info(`[SSE-AGGREGATOR] Connecting to OpenCode: ${url.toString()}`)
+    logger.info(`SSE connecting to OpenCode: ${directory}`)
 
     const eventSource = new EventSource(url.toString())
     conn.eventSource = eventSource
 
     eventSource.onopen = () => {
-      logger.info(`[SSE-AGGREGATOR] SSE connected: ${directory}`)
+      logger.info(`SSE connected: ${directory}`)
       conn.isConnected = true
       conn.reconnectDelay = RECONNECT_DELAY_MS
     }
 
     eventSource.onerror = () => {
-      logger.error(`[SSE-AGGREGATOR] SSE error for ${directory}, isConnected=${conn.isConnected}`)
-
       conn.isConnected = false
 
       if (conn.eventSource) {
@@ -207,17 +205,14 @@ class SSEAggregator {
   }
 
   private broadcastToDirectory(directory: string, event: string, data: string): void {
-    logger.info(`[SSE-AGGREGATOR] Received event for ${directory}: type=${event}, data=${data.substring(0, 200)}`)
-    
     try {
       const parsed = JSON.parse(data) as SSEEvent
-      logger.info(`[SSE-AGGREGATOR] Parsed event: type=${parsed.type}, properties=${JSON.stringify(parsed.properties).substring(0, 300)}`)
       this.handleEvent(directory, parsed)
       this.eventListeners.forEach(listener => {
         try { listener(directory, parsed) } catch { /* ignore listener errors */ }
       })
     } catch {
-      logger.warn(`[SSE-AGGREGATOR] Failed to parse event data: ${data.substring(0, 100)}`)
+      // Ignore parse errors
     }
 
     this.clients.forEach((client) => {

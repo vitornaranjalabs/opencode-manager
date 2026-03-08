@@ -111,11 +111,6 @@ export async function proxyRequest(request: Request) {
       }
     })
 
-    const isMessageEndpoint = url.pathname.includes('/message')
-    if (isMessageEndpoint) {
-      logger.info(`[PROXY] Forwarding message request to OpenCode: ${request.method} ${targetUrl}`)
-    }
-
     const response = await fetch(targetUrl, {
       method: request.method,
       headers,
@@ -128,10 +123,6 @@ export async function proxyRequest(request: Request) {
         responseHeaders[key] = value
       }
     })
-
-    if (isMessageEndpoint) {
-      logger.info(`[PROXY] Message response status: ${response.status}, body type: ${response.headers.get('content-type')}`)
-    }
 
     return new Response(response.body, {
       status: response.status,
