@@ -329,7 +329,9 @@ export const useSendPrompt = (opcodeUrl: string | null | undefined, directory?: 
       };
 
       if (model) {
-        const [providerID, modelID] = model.split("/");
+        const parts = model.split("/");
+        const providerID = parts[0];
+        const modelID = parts.slice(1).join("/");
         if (providerID && modelID) {
           requestData.model = {
             providerID,
