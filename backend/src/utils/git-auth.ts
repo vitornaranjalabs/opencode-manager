@@ -128,7 +128,7 @@ export function getCredentialForHost(credentials: GitCredential[], host: string)
 }
 
 export function getSSHCredentialsForHost(credentials: GitCredential[], host: string): GitCredential[] {
-  return credentials.filter(cred => {
+  const matches = credentials.filter(cred => {
     if (cred.type !== 'ssh') return false
     
     const credHost = cred.host.toLowerCase()

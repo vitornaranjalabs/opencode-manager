@@ -84,7 +84,9 @@ export class GitAuthService {
   }
 
   async setupSSHForRepoUrl(repoUrl: string | undefined, database: Database, skipSSHVerification: boolean = false): Promise<boolean> {
+    logger.info(`setupSSHForRepoUrl called with repoUrl=${repoUrl}, isSSHUrl=${repoUrl ? isSSHUrl(repoUrl) : 'N/A'}`)
     if (!repoUrl || !isSSHUrl(repoUrl)) {
+      logger.warn(`Skipping SSH setup: repoUrl=${repoUrl}, isSSHUrl=${repoUrl ? isSSHUrl(repoUrl) : 'N/A'}`)
       return false
     }
 
