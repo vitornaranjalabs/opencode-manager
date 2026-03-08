@@ -8,7 +8,7 @@ const TitleRequestSchema = z.object({
   sessionID: z.string().min(1)
 })
 
-const OPENCODE_SERVER_URL = `http://127.0.0.1:${ENV.OPENCODE.PORT}`
+const OPENCODE_SERVER_URL = `http://${ENV.OPENCODE.HOST}:${ENV.OPENCODE.PORT}`
 
 function buildUrl(path: string, directory?: string): string {
   const url = `${OPENCODE_SERVER_URL}${path}`

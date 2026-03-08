@@ -23,6 +23,9 @@ export function createSSERoutes() {
     return stream(c, async (writer) => {
       const encoder = new TextEncoder()
       const writeSSE = (event: string, data: string) => {
+        if (event !== 'heartbeat') {
+          logger.info(`[SSE-ROUTE] Sending to client ${clientId}: event=${event}, data=${data.substring(0, 200)}`)
+        }
         const lines = []
         if (event) lines.push(`event: ${event}`)
         lines.push(`data: ${data}`)
