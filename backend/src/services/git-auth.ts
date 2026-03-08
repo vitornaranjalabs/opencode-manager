@@ -99,9 +99,9 @@ export class GitAuthService {
   }
 
   private getSSHHostsFromCredentials(gitCredentials: GitCredential[]): string[] {
-    return gitCredentials
-      .filter(cred => cred.type === 'ssh' && cred.host)
-      .map(cred => {
+    const sshCreds = gitCredentials.filter(cred => cred.type === 'ssh' && cred.host)
+    logger.info(`getSSHHostsFromCredentials: found ${sshCreds.length} SSH credentials, hosts: ${sshCreds.map(c => c.host).join(', ')}`)
+    return sshCreds.map(cred => {
         try {
           const url = new URL(cred.host.startsWith('http') ? cred.host : `https://${cred.host}`)
           return url.hostname
