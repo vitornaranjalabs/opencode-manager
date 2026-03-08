@@ -122,7 +122,9 @@ export class GitAuthService {
     const settingsService = new SettingsService(database)
     const settings = settingsService.getSettings('default')
     const gitCredentials = (settings.preferences.gitCredentials || []) as GitCredential[]
+    logger.info(`All credentials in DB: ${JSON.stringify(gitCredentials.map(c => ({ name: c.name, type: c.type, host: c.host })))}`)
     const sshHosts = this.getSSHHostsFromCredentials(gitCredentials)
+    logger.info(`SSH hosts extracted: ${sshHosts.join(', ')}`)
     
     const isHttpsGitHub = repoUrl.includes('github.com') && repoUrl.startsWith('https://')
     const isHttpsGitLab = repoUrl.includes('gitlab.com') && repoUrl.startsWith('https://')
