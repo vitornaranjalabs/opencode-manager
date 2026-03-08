@@ -4,12 +4,13 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: opencode-manager
-    ports:
-      - "5003:5003"
-      - "5100:5100"
-      - "5101:5101"
-      - "5102:5102"
-      - "5103:5103"
+    # Usamos expose para que o Traefik do Coolify consiga rotear o tráfego interno
+    expose:
+      - "5003"
+      - "5100"
+      - "5101"
+      - "5102"
+      - "5103"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - HOST=0.0.0.0
@@ -25,7 +26,8 @@ services:
       - MAX_UPLOAD_SIZE_MB=50
       - DEBUG=false
       - AUTH_SECRET=${AUTH_SECRET}
-      - AUTH_TRUSTED_ORIGINS=${AUTH_TRUSTED_ORIGINS:-http://localhost:5003}
+      # Ajustado para o seu domínio real da Naranja Hub
+      - AUTH_TRUSTED_ORIGINS=${AUTH_TRUSTED_ORIGINS:-https://oc.naranjahub.com}
       - ADMIN_EMAIL=${ADMIN_EMAIL:-}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
       - ADMIN_PASSWORD_RESET=${ADMIN_PASSWORD_RESET:-false}
@@ -35,10 +37,10 @@ services:
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID:-}
       - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET:-}
-      - AUTH_SECURE_COOKIES=${AUTH_SECURE_COOKIES:-false}
-      - PASSKEY_RP_ID=${PASSKEY_RP_ID:-localhost}
+      - AUTH_SECURE_COOKIES=${AUTH_SECURE_COOKIES:-true}
+      - PASSKEY_RP_ID=${PASSKEY_RP_ID:-oc.naranjahub.com}
       - PASSKEY_RP_NAME=${PASSKEY_RP_NAME:-OpenCode Manager}
-      - PASSKEY_ORIGIN=${PASSKEY_ORIGIN:-http://localhost:5003}
+      - PASSKEY_ORIGIN=${PASSKEY_ORIGIN:-https://oc.naranjahub.com}
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
       - VAPID_SUBJECT=${VAPID_SUBJECT:-}
@@ -46,12 +48,10 @@ services:
       - opencode-workspace:/workspace
       - opencode-data:/app/data
     restart: unless-stopped
-    # healthcheck:
-    #   test: ["CMD", "curl", "-f", "http://localhost:5003/api/health"]
-    #   interval: 30s
-    #   timeout: 3s
-    #   retries: 3
-    #   start_period: 40s
+    # Mata o healthcheck fantasma do Dockerfile
+    healthcheck:
+      test: ["CMD", "exit", "0"]
+      disable: true
 
 volumes:
   opencode-workspace:
