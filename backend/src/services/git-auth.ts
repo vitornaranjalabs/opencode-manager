@@ -8,6 +8,7 @@ import { isSSHUrl, normalizeSSHUrl, extractHostFromSSHUrl, getSSHCredentialsForH
 import type { GitCredential } from '@opencode-manager/shared'
 import { logger } from '../utils/logger'
 import { SettingsService } from './settings'
+import { executeCommand } from '../utils/process'
 
 export class GitAuthService {
   private askpassHandler: AskpassHandler | null = null
@@ -142,7 +143,14 @@ export class GitAuthService {
       logger.warn('SSH host key handler not initialized, skipping auto-accept')
       return
     }
-    await this.sshHostKeyHandler.autoAcceptHostKey(repoUrl)
+    
+    try {
+      await this.sshHostKeyHandler.autoAcceptHostKey(repoUrl)
+      logger.info(`Auto-accepted host key for ${repoUrl}`)
+    } catch (error) {
+      logger.error(`Failed to auto-accept host key for ${repoUrl}:`, error)
+      throw error
+    }
   }
 
   async cleanupSSHKey(): Promise<void> {
@@ -179,5 +187,47 @@ export class GitAuthService {
     }
 
     return env
+  }
+
+  async testSSHConnection(host: string = 'github.com'): Promise<{ success: boolean; message: string }> {
+    const knownHostsPath = this.sshHostKeyHandler?.getKnownHostsPath()
+    
+    if (!knownHostsPath) {
+      return { success: false, message: 'SSH host key handler not initialized' }
+    }
+
+    try {
+      const sshCommand = buildSSHCommandWithKnownHosts(knownHostsPath)
+      const testCommand = `${sshCommand} -o ConnectTimeout=10 git@${host}`
+      
+      logger.info(`Testing SSH connection to ${host} with command: ${testCommand}`)
+      
+      const result = await executeCommand(
+        ['sh', '-c', testCommand],
+        { env: { ...this.sshHostKeyHandler.getEnv() }, silent: true }
+      )
+      
+      const output = typeof result === 'string' ? result : result.stdout
+      if (output.includes('successfully authenticated') || output.includes('Hi ')) {
+        return { success: true, message: `Successfully connected to ${host}` }
+      }
+      
+      return { success: true, message: `Connected to ${host}: ${output}` }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error(`SSH connection test failed: ${errorMessage}`)
+      
+      if (errorMessage.includes('Permission denied')) {
+        return { success: false, message: 'Permission denied - check your SSH key is added to GitHub and has correct permissions' }
+      }
+      if (errorMessage.includes('Connection timed out')) {
+        return { success: false, message: 'Connection timed out - check your network connectivity' }
+      }
+      if (errorMessage.includes('No route to host')) {
+        return { success: false, message: 'No route to host - check your network connectivity' }
+      }
+      
+      return { success: false, message: `SSH connection failed: ${errorMessage}` }
+    }
   }
 }

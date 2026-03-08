@@ -159,10 +159,25 @@ export class SSHHostKeyHandler implements IPCHandler {
 
   private async addToKnownHosts(host: string, publicKey: string): Promise<void> {
     try {
-      await fs.appendFile(this.knownHostsPath, publicKey + '\n')
-      logger.info(`Added host to known_hosts: ${host}`)
+      await fs.access(this.knownHostsPath)
+    } catch {
+      const configDir = path.dirname(this.knownHostsPath)
+      await fs.mkdir(configDir, { recursive: true })
+      await fs.writeFile(this.knownHostsPath, '', { mode: 0o600 })
+    }
+    
+    try {
+      const existingContent = await fs.readFile(this.knownHostsPath, 'utf-8')
+      const keyPart = publicKey.split(' ')[0]
+      if (!existingContent.includes(keyPart)) {
+        await fs.appendFile(this.knownHostsPath, publicKey + '\n')
+        logger.info(`Added host to known_hosts: ${host}`)
+      } else {
+        logger.info(`Host already exists in known_hosts: ${host}`)
+      }
     } catch (error) {
       logger.error(`Failed to add host to known_hosts: ${error}`)
+      throw error
     }
   }
 

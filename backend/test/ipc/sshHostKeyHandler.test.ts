@@ -282,7 +282,7 @@ describe('SSHHostKeyHandler', () => {
       const originalPath = handler['knownHostsPath']
       handler['knownHostsPath'] = '/nonexistent/path/known_hosts'
 
-      await expect(handler['addToKnownHosts']('github.com', 'github.com ssh-rsa AAAAB...')).resolves.toBeUndefined()
+      await expect(handler['addToKnownHosts']('github.com', 'github.com ssh-rsa AAAAB...')).rejects.toThrow()
 
       handler['knownHostsPath'] = originalPath
     })
