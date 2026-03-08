@@ -99,9 +99,9 @@ export class GitAuthService {
   }
 
   private getSSHHostsFromCredentials(gitCredentials: GitCredential[]): string[] {
-    const sshCreds = gitCredentials.filter(cred => cred.type === 'ssh' && cred.host)
-    logger.info(`getSSHHostsFromCredentials: found ${sshCreds.length} SSH credentials, hosts: ${sshCreds.map(c => c.host).join(', ')}`)
-    return sshCreds.map(cred => {
+    return gitCredentials
+      .filter(cred => cred.type === 'ssh' && cred.host)
+      .map(cred => {
         try {
           const url = new URL(cred.host.startsWith('http') ? cred.host : `https://${cred.host}`)
           return url.hostname
@@ -112,19 +112,15 @@ export class GitAuthService {
   }
 
   async setupSSHForRepoUrl(repoUrl: string | undefined, database: Database, skipSSHVerification: boolean = false): Promise<boolean> {
-    const isUrlSSH = repoUrl ? isSSHUrl(repoUrl) : false
-    logger.info(`setupSSHForRepoUrl called with repoUrl=${repoUrl}, isSSHUrl=${isUrlSSH}`)
-    
     if (!repoUrl) {
       return false
     }
 
+    const isUrlSSH = isSSHUrl(repoUrl)
     const settingsService = new SettingsService(database)
     const settings = settingsService.getSettings('default')
     const gitCredentials = (settings.preferences.gitCredentials || []) as GitCredential[]
-    logger.info(`All credentials in DB: ${JSON.stringify(gitCredentials.map(c => ({ name: c.name, type: c.type, host: c.host })))}`)
     const sshHosts = this.getSSHHostsFromCredentials(gitCredentials)
-    logger.info(`SSH hosts extracted: ${sshHosts.join(', ')}`)
     
     const isHttpsGitHub = repoUrl.includes('github.com') && repoUrl.startsWith('https://')
     const isHttpsGitLab = repoUrl.includes('gitlab.com') && repoUrl.startsWith('https://')
@@ -132,7 +128,6 @@ export class GitAuthService {
     const shouldUseSSH = isUrlSSH || (isHttps && sshHosts.length > 0)
     
     if (!shouldUseSSH) {
-      logger.warn(`Skipping SSH setup: repoUrl=${repoUrl}, isSSHUrl=${isUrlSSH}`)
       return false
     }
 
@@ -165,10 +160,7 @@ export class GitAuthService {
     const { port } = parseSSHHost(normalizedUrl)
     this.setSSHPort(port && port !== '22' ? port : null)
 
-    const matchingCredentials = gitCredentials.filter(c => c.type === 'ssh' && sshHosts.includes(c.host.toLowerCase().replace(/^(ssh:\/\/)?(git@)?/, '').split(':')[0].replace(/^https?:\/\//, '')))
-    logger.info(`Looking for SSH credentials for host: ${sshHost}, using direct host match from extracted SSH hosts: ${sshHosts.join(', ')}`)
-    logger.info(`Matching SSH credentials: ${matchingCredentials.map(c => c.name).join(', ')}`)
-    const sshCredentials = matchingCredentials
+    const sshCredentials = gitCredentials.filter(c => c.type === 'ssh' && sshHosts.includes(c.host.toLowerCase().replace(/^(ssh:\/\/)?(git@)?/, '').split(':')[0].replace(/^https?:\/\//, '')))
 
     if (sshCredentials.length > 0 && sshCredentials[0]) {
       try {
