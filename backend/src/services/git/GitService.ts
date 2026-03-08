@@ -529,9 +529,11 @@ export class GitService {
     }
 
     const isSSH = isSSHUrl(repo.repoUrl)
+    const isHttpsGitHost = (repo.repoUrl.includes('github.com') || repo.repoUrl.includes('gitlab.com')) && 
+                           repo.repoUrl.startsWith('https://')
     const baseEnv = this.gitAuthService.getGitEnvironment(silent)
 
-    if (!isSSH) {
+    if (!isSSH && !isHttpsGitHost) {
       return baseEnv
     }
 

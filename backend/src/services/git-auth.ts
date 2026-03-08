@@ -16,6 +16,7 @@ export class GitAuthService {
   private sshKeyPath: string | null = null
   private sshPassphrase: string | null = null
   private sshPort: string | null = null
+  private httpsToSshHosts: string[] = []
 
   async initialize(ipcServer: IPCServer | undefined, database: Database): Promise<void> {
     this.askpassHandler = new AskpassHandler(ipcServer, database)
@@ -59,6 +60,17 @@ export class GitAuthService {
     const knownHostsPath = this.sshHostKeyHandler?.getKnownHostsPath()
     const port = this.sshPort || undefined
     
+    const httpsRewrite: Record<string, string> = {}
+    if (this.httpsToSshHosts.length > 0) {
+      let configCount = 0
+      for (const host of this.httpsToSshHosts) {
+        httpsRewrite[`GIT_CONFIG_KEY_${configCount}`] = `url."git@${host}:".insteadOf`
+        httpsRewrite[`GIT_CONFIG_VALUE_${configCount}`] = `https://${host}/`
+        configCount++
+      }
+      httpsRewrite.GIT_CONFIG_COUNT = String(configCount)
+    }
+    
     if (!this.sshKeyPath) {
       if (knownHostsPath) {
         const sshCommand = buildSSHCommandWithKnownHosts(knownHostsPath, port)
@@ -66,11 +78,13 @@ export class GitAuthService {
         return {
           GIT_SSH_COMMAND: sshCommand,
           ...(this.sshHostKeyHandler?.getEnv() || {}),
+          ...httpsRewrite,
         }
       }
       logger.info(`SSH environment: No SSH key and no known_hosts path, returning host key handler env only`)
       return {
         ...(this.sshHostKeyHandler?.getEnv() || {}),
+        ...httpsRewrite,
       }
     }
 
@@ -80,18 +94,67 @@ export class GitAuthService {
       GIT_SSH_COMMAND: sshResult.command,
       ...(sshResult.env || {}),
       ...(this.sshHostKeyHandler?.getEnv() || {}),
+      ...httpsRewrite,
     }
   }
 
+  private getSSHHostsFromCredentials(gitCredentials: GitCredential[]): string[] {
+    return gitCredentials
+      .filter(cred => cred.type === 'ssh' && cred.host)
+      .map(cred => {
+        try {
+          const url = new URL(cred.host.startsWith('http') ? cred.host : `https://${cred.host}`)
+          return url.hostname
+        } catch {
+          return cred.host.toLowerCase().replace(/^(ssh:\/\/)?(git@)?/, '').split(':')[0]
+        }
+      })
+  }
+
   async setupSSHForRepoUrl(repoUrl: string | undefined, database: Database, skipSSHVerification: boolean = false): Promise<boolean> {
-    logger.info(`setupSSHForRepoUrl called with repoUrl=${repoUrl}, isSSHUrl=${repoUrl ? isSSHUrl(repoUrl) : 'N/A'}`)
-    if (!repoUrl || !isSSHUrl(repoUrl)) {
-      logger.warn(`Skipping SSH setup: repoUrl=${repoUrl}, isSSHUrl=${repoUrl ? isSSHUrl(repoUrl) : 'N/A'}`)
+    const isUrlSSH = repoUrl ? isSSHUrl(repoUrl) : false
+    logger.info(`setupSSHForRepoUrl called with repoUrl=${repoUrl}, isSSHUrl=${isUrlSSH}`)
+    
+    if (!repoUrl) {
       return false
     }
 
-    const normalizedUrl = normalizeSSHUrl(repoUrl)
-    const sshHost = extractHostFromSSHUrl(normalizedUrl)
+    const settingsService = new SettingsService(database)
+    const settings = settingsService.getSettings('default')
+    const gitCredentials = (settings.preferences.gitCredentials || []) as GitCredential[]
+    const sshHosts = this.getSSHHostsFromCredentials(gitCredentials)
+    
+    const isHttpsGitHub = repoUrl.includes('github.com') && repoUrl.startsWith('https://')
+    const isHttpsGitLab = repoUrl.includes('gitlab.com') && repoUrl.startsWith('https://')
+    const isHttps = isHttpsGitHub || isHttpsGitLab
+    const shouldUseSSH = isUrlSSH || (isHttps && sshHosts.length > 0)
+    
+    if (!shouldUseSSH) {
+      logger.warn(`Skipping SSH setup: repoUrl=${repoUrl}, isSSHUrl=${isUrlSSH}`)
+      return false
+    }
+
+    if (isHttps) {
+      const host = repoUrl.includes('github.com') ? 'github.com' : 'gitlab.com'
+      this.addHttpsToSshHost(host)
+      logger.info(`Will rewrite HTTPS URLs to SSH for ${host}`)
+    }
+
+    let normalizedUrl = normalizeSSHUrl(repoUrl)
+    let sshHost = extractHostFromSSHUrl(normalizedUrl)
+    
+    if (!sshHost && isHttps) {
+      const urlMatch = repoUrl.match(/https?:\/\/([^/]+)/)
+      if (urlMatch) {
+        sshHost = urlMatch[1]
+        const pathMatch = repoUrl.match(/https?:\/\/[^/]+\/(.+)/)
+        if (pathMatch) {
+          normalizedUrl = `git@${sshHost}:${pathMatch[1]}`
+          sshHost = extractHostFromSSHUrl(normalizedUrl) || sshHost
+        }
+      }
+    }
+    
     if (!sshHost) {
       logger.warn(`Could not extract SSH host from URL: ${repoUrl}`)
       return false
@@ -100,9 +163,6 @@ export class GitAuthService {
     const { port } = parseSSHHost(normalizedUrl)
     this.setSSHPort(port && port !== '22' ? port : null)
 
-    const settingsService = new SettingsService(database)
-    const settings = settingsService.getSettings('default')
-    const gitCredentials = (settings.preferences.gitCredentials || []) as GitCredential[]
     logger.info(`Looking for SSH credentials for host: ${sshHost}, configured credentials: ${gitCredentials.map(c => `${c.name}(${c.host},${c.type})`).join(', ')}`)
     const sshCredentials = getSSHCredentialsForHost(gitCredentials, sshHost)
     logger.info(`Found ${sshCredentials.length} SSH credentials for ${sshHost}`)
@@ -163,7 +223,14 @@ export class GitAuthService {
       this.sshKeyPath = null
       this.sshPassphrase = null
       this.sshPort = null
+      this.httpsToSshHosts = []
       logger.info('SSH key cleaned up')
+    }
+  }
+  
+  addHttpsToSshHost(host: string): void {
+    if (!this.httpsToSshHosts.includes(host)) {
+      this.httpsToSshHosts.push(host)
     }
   }
 
@@ -188,6 +255,16 @@ export class GitAuthService {
         env.GIT_SSH_COMMAND = buildSSHCommandWithKnownHosts(knownHostsPath)
         Object.assign(env, this.sshHostKeyHandler.getEnv())
       }
+    }
+
+    if (this.httpsToSshHosts.length > 0) {
+      let configCount = 0
+      for (const host of this.httpsToSshHosts) {
+        env[`GIT_CONFIG_KEY_${configCount}`] = `url."git@${host}:".insteadOf`
+        env[`GIT_CONFIG_VALUE_${configCount}`] = `https://${host}/`
+        configCount++
+      }
+      env.GIT_CONFIG_COUNT = String(configCount)
     }
 
     return env
